@@ -1,0 +1,24 @@
+<h1>Apollo调研</h1>
+
+<h2>What</h2>
+
+<p>Apollo用于管理项目中的各种配置.</p>
+
+<h2>Why</h2>
+
+<ul><li>统一管理不同环境、不同集群的配置<ul><li>Apollo支持4个维度管理Key-Value格式的配置：<ul><li>application (应用)</li><li>environment (环境)</li><li>cluster (集群)</li><li>namespace (命名空间)：namespace支持properties（默认）、xml、json、yaml 4种格式的数据</li></ul></li></ul></li><li>配置修改实时生效（热发布）</li><li>版本发布管理</li><li>灰度发布</li><li>权限管理、发布审核、操作审计</li><li>客户端配置信息监控</li><li>提供了Http接口，非Java和.Net应用也可以方便地使用</li><li>提供开放平台API</li><li>部署简单、分布式部署</li></ul>
+
+<h2>Apollo设计</h2>
+
+<ul><li>基础模型
+<img width="700px" alt="" src="https://github.com/ctripcorp/apollo/raw/master/doc/images/basic-architecture.png"/></li><li>架构模块
+<img width="700px" alt="" src="https://github.com/ctripcorp/apollo/raw/master/doc/images/overall-architecture.png"/></li><li>四大模块<ul><li>Config Service<ul><li>提供配置获取接口</li><li>提供配置更新推送接口（基于Http long polling）</li><li>接口服务对象为Apollo客户端</li></ul></li><li>Admin Service<ul><li>提供配置管理接口</li><li>提供配置修改、发布等接口</li><li>接口服务对象为Portal（也可以是授权的开发平台api）</li></ul></li><li>Meta Server<ul><li>Portal通过域名访问Meta Server获取Admin Service服务列表（IP+Port）</li><li>Client通过域名访问Meta Server获取Config Service服务列表（IP+Port）</li><li>Meta Server从Eureka获取Config Service和Admin Service的服务信息，相当于是一个Eureka Client</li><li>增设一个Meta Server的角色主要是为了封装服务发现的细节，对Portal和Client而言，永远通过一个Http接口获取Admin Service和Config Service的服务信息，而不需要关心背后实际的服务注册和发现组件</li><li>Meta Server只是一个逻辑角色，在部署时和Config Service是在一个JVM进程中的，所以IP、端口和Config Service一致</li></ul></li><li>Eureka</li><li>Portal</li><li>Client</li></ul></li><li>客户端设计
+<img width="700px" alt="" src="https://github.com/ctripcorp/apollo/raw/master/doc/images/client-architecture.png"/></li></ul>
+
+<h2>Apollo的一些缺点</h2>
+
+<ul><li>获取配置的接口没有权限控制<ul><li>解决方案：<ul><li>配置只能内网访问</li><li>封装一层接口，做权限校验</li></ul></li></ul></li><li>Apollo用户系统较弱，只提供了简单的认证<ul><li>解决方案：<ul><li>虽然Apollo用户系统较弱，但是定义了一些SPI来解耦，可以自己实现一些用户权限的管理</li><li>接入公司的统一登录认证系统</li></ul></li></ul></li><li>Apollo namespace常用的properties格式中(key=&gt;value)，value只能为字符串，不支持其它类型<ul><li>解决方案：<ul><li>加一个type用来指定value的类型，写入数据库时存json格式：例如原先value为15的数据，加上type之后，存入数据库中的值为：{&quot;type&quot;:&quot;integer&quot;, &quot;value&quot;:15}</li><li>对于很复杂的配置，可以使用xml、json、yaml等格式</li><li>制定一个命名规则，例如json_开头则说明该key的值为json类型，客户端可根据该前缀解析value</li></ul></li></ul></li><li>xml、json、yaml格式数据的返回没有任何解析，都是字符串类型<ul><li>解决方案:<ul><li>修改apollo源代码，使它返回的格式都为通用的json对象<ul><li>缺点：json只是目前比较通用的格式，不排除有些语言还是希望保留yaml、xml这种源格式</li><li>优点：统一，不需要客户端做任何处理</li></ul></li><li>在客户端做处理</li></ul></li></ul></li></ul>
+
+<h1>项目中的使用方案</h1>
+
+<ul><li>实时：需要新开进程使用长轮询监听配置的变化<ul><li>优点<ul><li>配置更改后不需要在项目中进行任何编辑，也不需要重新构建</li></ul></li><li>缺点：<ul><li>有风险</li><li>每个项目都需要启动一个监听配置的进程(当然也可以把监听配置的进程独立出来部署成一个服务，任何项目都通过该服务获取配置)</li><li>监听进程挂了之后项目无法获取更新的配置</li></ul></li></ul></li><li>构建时：使用Jenkins构建项目时拉取配置并写入到项目中<ul><li>优点<ul><li>可控</li><li>不需要监听进程</li><li>项目构建之后就与配置中心独立</li></ul></li><li>缺点<ul><li>无法实时更新热部署，每次更改配置之后需要到jenkins重新构建</li></ul></li></ul></li></ul>
